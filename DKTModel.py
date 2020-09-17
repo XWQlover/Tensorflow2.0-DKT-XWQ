@@ -1,40 +1,37 @@
 import tensorflow as tf
 
+
 class DKT(tf.keras.models.Model):
-    def __init__(self, total_user, total_skill, embedding_size):
+    def __init__(self, total_skills_correctness, embedding_size):
         super(DKT, self).__init__(name="DKTModel")
 
-        self.mask = tf.keras.layers.Masking(mask_value=-1.0)
+        self.mask = tf.keras.layers.Masking(mask_value=-1)
 
         # 两个嵌入层
-        self.user_embedding = tf.keras.layers.Embedding(total_user, embedding_size)
-        self.skill_embedding = tf.keras.layers.Embedding(total_skill, embedding_size)
+
+        self.skill_embedding = tf.keras.layers.Embedding(total_skills_correctness, embedding_size)
         # RNN
-        self.rnn = tf.keras.layers.LSTM(units=64, return_sequences=True, dropout=0.3)
+        self.rnn = tf.keras.Sequential([tf.keras.layers.LSTM(units=64, return_sequences=True, dropout=0.3),
+                                        tf.keras.layers.LSTM(units=64, return_sequences=True, dropout=0.3)])
 
         # dense
-        self.dense = tf.keras.layers.Dense(2, activation='sigmoid')
+        self.dense = tf.keras.layers.Dense(total_skills_correctness / 2, activation='sigmoid')
 
         self.distribute = tf.keras.layers.TimeDistributed(self.dense)
 
         self.softmax = tf.keras.layers.Softmax()
 
-    def call(self, userid, skillid):
-        userid, skillid = tf.expand_dims(userid, axis=-1), tf.expand_dims(skillid, axis=-1)
-        userid = self.mask(userid)
-        skillid = self.mask(skillid)
+    def call(self, skillid):
+        skillid = tf.expand_dims(skillid, axis=-1)
 
-        user_vector = self.user_embedding(userid)
+        skillid = self.mask(skillid)
 
         skill_vector = self.skill_embedding(skillid)
 
-        x = tf.concat([user_vector, skill_vector], axis=-1)
+        x = skill_vector
 
         x = tf.squeeze(x, axis=-2)
         x = self.rnn(x)
-
-        x = self.distribute(x)
-
-        y = self.softmax(x)
+        y = self.distribute(x)
 
         return y
